@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stealth Benchmark — Interview Detection Tester</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --bg2: #161b22; --bg3: #1c2128; --border: #30363d;
+      --text: #c9d1d9; --muted: #8b949e; --green: #3fb950;
+      --red: #f85149; --yellow: #d29922; --blue: #58a6ff; --purple: #bc8cff;
+    }
+    body { background: var(--bg); color: var(--text); font-family: 'Courier New', monospace; font-size: 14px; line-height: 1.6; padding: 40px 16px; }
+    .container { max-width: 800px; margin: 0 auto; }
+
+    /* HEADER */
+    .header { margin-bottom: 40px; }
+    h1 { font-size: 24px; color: #fff; margin-bottom: 6px; letter-spacing: -0.5px; }
+    .subtitle { color: var(--muted); font-size: 13px; }
+    .subtitle a { color: var(--blue); text-decoration: none; }
+
+    /* SECTION LABEL */
+    .section-label {
+      font-size: 10px; color: var(--muted); text-transform: uppercase;
+      letter-spacing: 0.12em; margin-bottom: 10px; display: flex;
+      align-items: center; gap: 8px;
+    }
+    .section-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+    /* INSTRUCTIONS */
+    .instructions { background: var(--bg2); border: 1px solid var(--border); padding: 20px 24px; margin-bottom: 36px; display: flex; flex-direction: column; gap: 10px; }
+    .instruction-row { display: flex; gap: 14px; align-items: flex-start; font-size: 13px; }
+    .instruction-num { color: var(--blue); flex-shrink: 0; min-width: 28px; }
+    .instruction-text { color: var(--text); }
+    .instruction-text strong { color: var(--green); }
+    .instruction-text .fail { color: var(--red); }
+    .instruction-text .warn { color: var(--yellow); }
+
+    /* SCORE */
+    .score-card { background: var(--bg2); border: 1px solid var(--border); padding: 24px; margin-bottom: 36px; display: flex; align-items: center; gap: 24px; }
+    .score-big { font-size: 52px; color: #fff; font-weight: bold; line-height: 1; min-width: 90px; }
+    .score-right { flex: 1; display: flex; flex-direction: column; gap: 10px; }
+    .score-meta { display: flex; justify-content: space-between; align-items: center; }
+    .score-label-text { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; }
+    .score-pct { font-size: 20px; color: #fff; font-weight: bold; }
+    .score-bar { height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .score-bar-fill { height: 100%; background: var(--green); transition: width 0.5s ease, background 0.5s; border-radius: 4px; }
+    .score-status { font-size: 12px; padding: 3px 10px; border: 1px solid; display: inline-block; }
+    .score-status.safe { color: var(--green); border-color: var(--green); }
+    .score-status.risk { color: var(--yellow); border-color: var(--yellow); }
+    .score-status.exposed { color: var(--red); border-color: var(--red); }
+    .score-status.pending { color: var(--muted); border-color: var(--border); }
+
+    /* ACTIONS */
+    .actions { display: flex; gap: 8px; margin-bottom: 36px; }
+    button { background: none; border: 1px solid var(--border); color: var(--text); font-family: monospace; font-size: 12px; padding: 8px 18px; cursor: pointer; transition: border-color 0.15s, color 0.15s, background 0.15s; }
+    button:hover { border-color: var(--blue); color: var(--blue); }
+    button.primary { border-color: var(--green); color: var(--green); }
+    button.primary:hover { background: var(--green); color: #000; }
+
+    /* EVENT LOG */
+    .log { background: var(--bg2); border: 1px solid var(--border); height: 280px; overflow-y: auto; margin-bottom: 36px; }
+    .log-empty { padding: 20px; color: var(--muted); font-size: 12px; text-align: center; }
+    .log-entry {
+      display: grid;
+      grid-template-columns: 70px 60px 1fr;
+      align-items: start;
+      gap: 0;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--bg3);
+      font-size: 12px;
+      border-left: 3px solid transparent;
+      transition: background 0.1s;
+    }
+    .log-entry:hover { background: var(--bg3); }
+    .log-entry:last-child { border-bottom: none; }
+    .log-entry.type-pass { border-left-color: var(--green); }
+    .log-entry.type-fail { border-left-color: var(--red); }
+    .log-entry.type-warn { border-left-color: var(--yellow); }
+    .log-entry.type-info { border-left-color: var(--blue); }
+    .log-time { color: var(--muted); font-size: 11px; padding-top: 1px; }
+    .log-tag { font-size: 10px; padding: 1px 6px; border: 1px solid; border-radius: 2px; display: inline-block; white-space: nowrap; margin-top: 1px; margin-right: 6px;}
+    .log-tag.pass { color: var(--green); border-color: var(--green); }
+    .log-tag.fail { color: var(--red); border-color: var(--red); }
+    .log-tag.warn { color: var(--yellow); border-color: var(--yellow); }
+    .log-tag.info { color: var(--blue); border-color: var(--blue); }
+    .log-msg { color: var(--text); line-height: 1.5; }
+    .log-msg.pass { color: var(--green); }
+    .log-msg.fail { color: var(--red); }
+    .log-msg.warn { color: var(--yellow); }
+    .log-msg.info { color: var(--blue); }
+
+    /* CHECKS */
+    .checks { display: flex; flex-direction: column; gap: 2px; margin-bottom: 36px; }
+    .check { background: var(--bg2); border: 1px solid var(--border); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; gap: 16px; transition: background 0.15s; }
+    .check:hover { background: var(--bg3); }
+    .check-left { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+    .check-name { color: #fff; font-size: 13px; font-weight: bold; }
+    .check-desc { color: var(--muted); font-size: 11px; }
+    .check-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+    .badge { font-size: 11px; padding: 3px 10px; border: 1px solid; white-space: nowrap; }
+    .badge-pass { color: var(--green); border-color: var(--green); }
+    .badge-fail { color: var(--red); border-color: var(--red); }
+    .badge-warn { color: var(--yellow); border-color: var(--yellow); }
+    .badge-pending { color: var(--muted); border-color: var(--border); }
+    .risk-tag { font-size: 10px; color: var(--muted); }
+    .risk-high { color: var(--red); }
+    .risk-medium { color: var(--yellow); }
+    .risk-low { color: var(--blue); }
+
+    footer { margin-top: 48px; color: var(--muted); font-size: 12px; text-align: center; }
+    footer a { color: var(--blue); text-decoration: none; }
+    * { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="header">
+    <h1>🕵️ Stealth Benchmark</h1>
+    <p class="subtitle">Simulates detection techniques used by coding interview platforms (CoderPad, HackerRank, Codility…). Run this before your interview to make sure nothing gets flagged. · Built by <a href="https://blind.codes" target="_blank">blind.codes</a> · <a href="https://github.com/blindCodes/stealth-benchmark" target="_blank">GitHub</a></p>
+  </div>
+
+  <!-- INSTRUCTIONS -->
+  <div class="section-label">How to use</div>
+  <div class="instructions">
+    <div class="instruction-row">
+      <span class="instruction-num">01 —</span>
+      <span class="instruction-text">Open this page in the <strong>same browser</strong> you will use for your interview.</span>
+    </div>
+    <div class="instruction-row">
+      <span class="instruction-num">02 —</span>
+      <span class="instruction-text">Set up your environment exactly as you would during the interview — overlay tools, second monitor, etc.</span>
+    </div>
+    <div class="instruction-row">
+      <span class="instruction-num">03 —</span>
+      <span class="instruction-text">Click <strong>▶ Run all checks</strong>. Each check simulates a detection technique used by interview platforms.</span>
+    </div>
+    <div class="instruction-row">
+      <span class="instruction-num">04 —</span>
+      <span class="instruction-text">Watch the <strong>event log</strong> — it captures everything in real time: tab switches, focus loss, DevTools opening.</span>
+    </div>
+    <div class="instruction-row">
+      <span class="instruction-num">05 —</span>
+      <span class="instruction-text">Aim for <strong>100%</strong>. A <span class="fail">✗ FAIL</span> means a platform could flag you. A <span class="warn">~ INFO</span> is informational only.</span>
+    </div>
+  </div>
+
+  <!-- SCORE -->
+  <div class="section-label">Score</div>
+  <div class="score-card">
+    <div class="score-big" id="score-num">—</div>
+    <div class="score-right">
+      <div class="score-meta">
+        <span class="score-label-text">Stealth Score</span>
+        <span class="score-pct" id="score-pct">—</span>
+      </div>
+      <div class="score-bar"><div class="score-bar-fill" id="score-bar" style="width:0%"></div></div>
+      <div><span class="score-status pending" id="score-status">NOT RUN YET</span></div>
+    </div>
+  </div>
+
+  <!-- ACTIONS -->
+  <div class="actions">
+    <button class="primary" id="btn-run">▶ Run all checks</button>
+    <button id="btn-clear">Clear log</button>
+  </div>
+
+  <!-- EVENT LOG -->
+  <div class="section-label">Event log <span style="color:var(--muted);font-size:10px;text-transform:none;letter-spacing:0">— live feed of everything detected during your session</span></div>
+  <div class="log" id="log">
+    <div class="log-empty" id="log-empty">No events yet — run checks or interact with the page</div>
+  </div>
+
+  <!-- CHECKS -->
+  <div class="section-label">Checks</div>
+  <div class="checks" id="checks"></div>
+
+  <footer>
+    <p>stealth-benchmark · open source · <a href="https://github.com/blindCodes/stealth-benchmark" target="_blank">github.com/blindCodes/stealth-benchmark</a> · <a href="https://blind.codes" target="_blank">blind.codes</a></p>
+  </footer>
+
+</div>
+<script>
+  const CHECKS = [
+    {
+      id: 'focus',
+      name: 'Window Focus',
+      desc: 'Detects if the browser window loses focus during the session',
+      risk: 'high',
+      run: () => ({ pass: document.hasFocus(), detail: document.hasFocus() ? 'Window is focused' : 'Window is not focused' })
+    },
+    {
+      id: 'visibility',
+      name: 'Tab Visibility',
+      desc: 'Detects if the candidate switches to another tab',
+      risk: 'high',
+      run: () => ({ pass: !document.hidden, detail: document.hidden ? 'Tab is hidden' : 'Tab is visible' })
+    },
+    {
+      id: 'devtools',
+      name: 'DevTools Detection',
+      desc: 'Detects if browser DevTools are open (size + console getter heuristics)',
+      risk: 'medium',
+      run: () => {
+        const open = isDevToolsOpen()
+        return { pass: !open, detail: open ? 'DevTools appear to be open' : 'DevTools not detected' }
+      }
+    },
+    {
+      id: 'multiscreen',
+      name: 'Multiple Screens',
+      desc: 'Detects if more than one monitor is connected',
+      risk: 'medium',
+      run: () => {
+        const extended = window.screen.isExtended
+        if (extended === undefined) return { pass: null, detail: 'API not supported in this browser' }
+        return { pass: !extended, detail: extended ? 'Multiple screens detected' : 'Single screen only' }
+      }
+    },
+    {
+      id: 'screenshare',
+      name: 'Screen Share / Recording',
+      desc: 'Checks if the browser can request screen capture (getDisplayMedia)',
+      risk: 'low',
+      run: () => {
+        const available = !!(navigator.mediaDevices && navigator.mediaDevices.getDisplayMedia)
+        return { pass: null, detail: available ? 'getDisplayMedia available — browser can request screen share' : 'getDisplayMedia not available' }
+      }
+    },
+    {
+      id: 'clipboard',
+      name: 'Clipboard Access',
+      desc: 'Checks if clipboard read permission is already granted (could indicate automation)',
+      risk: 'medium',
+      run: async () => {
+        try {
+          const perm = await navigator.permissions.query({ name: 'clipboard-read' })
+          const granted = perm.state === 'granted'
+          return { pass: !granted, detail: `Clipboard-read permission: ${perm.state}` }
+        } catch {
+          return { pass: null, detail: 'Permissions API not supported in this browser' }
+        }
+      }
+    },
+    {
+      id: 'shortcut',
+      name: 'Global Shortcut Detection',
+      desc: 'Detects if a suspicious shortcut (Cmd+Shift+[any key]) is fired during the session',
+      risk: 'high',
+      run: () => ({ pass: null, detail: 'Listening for Cmd+Shift+[any key] — press one to test' })
+    },
+    {
+      id: 'useragent',
+      name: 'User Agent / OS',
+      desc: 'Logs the browser and OS — platforms use this for audit trails',
+      risk: 'low',
+      run: () => ({ pass: null, detail: navigator.userAgent })
+    },
+    {
+      id: 'timezone',
+      name: 'Timezone & Locale',
+      desc: 'Logs timezone and locale — inconsistencies can flag VPN or proxy use',
+      risk: 'low',
+      run: () => {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+        const locale = navigator.language
+        return { pass: null, detail: `Timezone: ${tz} · Locale: ${locale}` }
+      }
+    }
+  ]
+
+  const RISK_LABELS = { high: 'HIGH RISK', medium: 'MEDIUM RISK', low: 'LOW RISK' }
+
+  const checksEl = document.getElementById('checks')
+  const logEl = document.getElementById('log')
+  const logEmpty = document.getElementById('log-empty')
+
+  CHECKS.forEach(c => {
+    const row = document.createElement('div')
+    row.className = 'check'
+    row.id = 'check-' + c.id
+    row.innerHTML = `
+      <div class="check-left">
+        <div class="check-name">${c.name}</div>
+        <div class="check-desc">${c.desc}</div>
+      </div>
+      <div class="check-right">
+        <div class="badge badge-pending" id="badge-${c.id}">PENDING</div>
+        <div class="risk-tag risk-${c.risk}">${RISK_LABELS[c.risk]}</div>
+      </div>
+    `
+    checksEl.appendChild(row)
+  })
+
+  function now() {
+    return new Date().toLocaleTimeString('en-US', { hour12: false })
+  }
+
+  const TAG_LABELS = { pass: 'PASS', fail: 'FAIL', warn: 'INFO', info: 'SYS' }
+
+  function log(msg, type = 'info') {
+    if (logEmpty) logEmpty.style.display = 'none'
+    const entry = document.createElement('div')
+    entry.className = `log-entry type-${type}`
+    entry.innerHTML = `
+      <span class="log-time">${now()}</span>
+      <span class="log-tag ${type}">${TAG_LABELS[type]}</span>
+      <span class="log-msg ${type}">${msg}</span>
+    `
+    logEl.appendChild(entry)
+    logEl.scrollTop = logEl.scrollHeight
+  }
+
+  function setBadge(id, pass) {
+    const badge = document.getElementById('badge-' + id)
+    if (pass === true)  { badge.className = 'badge badge-pass'; badge.textContent = '✓ PASS' }
+    else if (pass === false) { badge.className = 'badge badge-fail'; badge.textContent = '✗ FAIL' }
+    else { badge.className = 'badge badge-warn'; badge.textContent = '~ INFO' }
+  }
+
+  async function runAll() {
+    log('Starting all checks…', 'info')
+    let passed = 0, total = 0
+
+    for (const c of CHECKS) {
+      const result = await c.run()
+      setBadge(c.id, result.pass)
+      const type = result.pass === true ? 'pass' : result.pass === false ? 'fail' : 'warn'
+      log(`[${c.name}] ${result.detail}`, type)
+      if (result.pass === true) passed++
+      if (result.pass !== null) total++
+    }
+
+    const pct = total ? Math.round(passed / total * 100) : 0
+    document.getElementById('score-num').textContent = `${passed}/${total}`
+    document.getElementById('score-pct').textContent = pct + '%'
+    document.getElementById('score-bar').style.width = pct + '%'
+
+    const bar = document.getElementById('score-bar')
+    const status = document.getElementById('score-status')
+    if (pct >= 80) {
+      bar.style.background = 'var(--green)'
+      status.className = 'score-status safe'; status.textContent = '✓ SAFE TO PROCEED'
+    } else if (pct >= 50) {
+      bar.style.background = 'var(--yellow)'
+      status.className = 'score-status risk'; status.textContent = '⚠ AT RISK'
+    } else {
+      bar.style.background = 'var(--red)'
+      status.className = 'score-status exposed'; status.textContent = '✗ EXPOSED'
+    }
+
+    log(`Scan complete — ${passed}/${total} checks passed (${pct}%)`, pct >= 80 ? 'pass' : 'warn')
+  }
+
+  document.getElementById('btn-run').addEventListener('click', runAll)
+  document.getElementById('btn-clear').addEventListener('click', () => {
+    logEl.innerHTML = ''
+    logEl.appendChild(logEmpty)
+    logEmpty.style.display = ''
+  })
+
+  // Continuous monitoring
+  document.addEventListener('visibilitychange', () => {
+    const hidden = document.hidden
+    log(`Tab visibility changed → ${hidden ? 'HIDDEN — platform would flag this' : 'visible'}`, hidden ? 'fail' : 'pass')
+    setBadge('visibility', !hidden)
+  })
+
+  window.addEventListener('blur', () => {
+    log('Window lost focus — platform would flag this', 'fail')
+    setBadge('focus', false)
+  })
+
+  window.addEventListener('focus', () => {
+    log('Window regained focus', 'pass')
+    setBadge('focus', true)
+  })
+
+  // DevTools detection — multi-technique
+  function isDevToolsOpen() {
+    // Technique 1: window size delta (docked devtools)
+    if ((window.outerWidth - window.innerWidth > 160) || (window.outerHeight - window.innerHeight > 160)) return true
+    // Technique 2: console getter trick
+    let opened = false
+    const el = new Image()
+    Object.defineProperty(el, 'id', { get: () => { opened = true } })
+    console.log('%c', el) // getter fires only when devtools console is open
+    return opened
+  }
+
+  let devToolsWasOpen = isDevToolsOpen()
+  setInterval(() => {
+    const open = isDevToolsOpen()
+    if (open !== devToolsWasOpen) {
+      devToolsWasOpen = open
+      if (open) {
+        log('DevTools opened — platform would flag this', 'fail')
+        setBadge('devtools', false)
+      } else {
+        log('DevTools closed', 'pass')
+        setBadge('devtools', true)
+      }
+    }
+  }, 1000)
+
+  window.addEventListener('resize', () => {
+    const open = isDevToolsOpen()
+    if (open) log('DevTools detected after resize', 'fail')
+  })
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.length === 1) {
+      log(`Shortcut Cmd+Shift+${e.key.toUpperCase()} detected — platform would flag this`, 'fail')
+      setBadge('shortcut', false)
+    }
+  })
+
+  log('Ready — click "Run all checks" to start', 'info')
+</script>
+</body>
+</html>
